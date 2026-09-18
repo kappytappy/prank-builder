@@ -33,12 +33,20 @@ MUSIC_EXTS = (".mp3", ".wav", ".ogg")
 
 
 def _latest_release():
+    """Newest release that actually contains the Windows exe asset."""
     req = urllib.request.Request(
-        f"https://api.github.com/repos/{PRANK_REPO}/releases/latest",
+        f"https://api.github.com/repos/{PRANK_REPO}/releases?per_page=20",
         headers={"User-Agent": "prank-builder", "Accept": "application/vnd.github+json"},
     )
     with urllib.request.urlopen(req, timeout=30) as r:
-        return json.load(r)
+        releases = json.load(r)
+    for rel in releases:
+        if rel.get("draft"):
+            continue
+        for a in rel.get("assets", []):
+            if a.get("name") == EXE_NAME:
+                return rel
+    raise RuntimeError(f"{EXE_NAME} not found in any recent release yet.")
 
 
 def get_exe():
