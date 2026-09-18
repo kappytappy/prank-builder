@@ -1,0 +1,52 @@
+name: Build Windows exe
+
+# Builds a double-clickable prank-builder.exe and publishes it on Releases.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app.py"
+      - "requirements.txt"
+      - "templates/**"
+      - ".github/workflows/build-windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Stamp app version
+        run: |
+          "APP_VERSION = `"v1.0.${{ github.run_number }}`"" | Out-File -Encoding utf8 version.py
+
+      - name: Build standalone exe
+        run: |
+          pyinstaller --onefile --noconfirm --name prank-builder `
+            --add-data "templates;templates" app.py
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Prank Builder v1.0.${{ github.run_number }}
+          body: |
+            Download `prank-builder.exe` below, double-click it - no Python
+            install needed. Your browser opens automatically.
+
+            Drag in your images + a song, set the chaos, hit build, and copy
+            the prank kit to a USB stick.
+          files: dist/prank-builder.exe

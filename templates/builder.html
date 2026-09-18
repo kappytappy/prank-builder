@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prank Builder</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; background: #f4f5f7;
+         color: #1c1e21; min-height: 100vh; padding: 28px 18px; display: flex; justify-content: center; }
+  .card { background: #fff; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,.08);
+          padding: 36px; max-width: 640px; width: 100%; align-self: flex-start; }
+  h1 { font-size: 26px; margin-bottom: 6px; }
+  p.sub { color: #65676b; font-size: 14px; margin-bottom: 22px; }
+  .exe-note { background: #eef7ee; color: #2e7d32; border-radius: 8px; padding: 10px 14px;
+              font-size: 13px; margin-bottom: 20px; }
+  .exe-note.warn { background: #fdf3e7; color: #9c6b00; }
+  .drop { border: 2px dashed #ccd0d5; border-radius: 12px; padding: 26px 18px; text-align: center;
+          cursor: pointer; margin-bottom: 14px; transition: border-color .15s, background .15s; }
+  .drop:hover, .drop.over { border-color: #1877f2; background: #f0f6ff; }
+  .drop .t { font-weight: 600; font-size: 15px; }
+  .drop .s { color: #65676b; font-size: 12.5px; margin-top: 4px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+  .chip { background: #eef0f3; border-radius: 20px; padding: 6px 8px 6px 12px; font-size: 12.5px;
+          display: flex; align-items: center; gap: 6px; }
+  .chip button { border: none; background: #d7dade; border-radius: 50%; width: 20px; height: 20px;
+                 cursor: pointer; font-size: 12px; line-height: 1; }
+  .row { margin-bottom: 18px; }
+  .row label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+  .row label span { color: #1877f2; }
+  input[type=range] { width: 100%; }
+  .check { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; }
+  .check input { width: 20px; height: 20px; }
+  #build { width: 100%; background: #c81e1e; color: #fff; border: none; border-radius: 10px;
+           padding: 15px; font-size: 17px; font-weight: 700; cursor: pointer; margin-top: 6px; }
+  #build:disabled { background: #b0b3b8; cursor: default; }
+  .hint { font-size: 12.5px; color: #90949c; margin-top: 12px; text-align: center; }
+  .ver { text-align: right; color: #90949c; font-size: 12px; margin-top: 18px; }
+  .ver a { color: #1877f2; text-decoration: none; margin-left: 8px; }
+  input[type=file] { display: none; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>&#127881; Prank Builder</h1>
+  <p class="sub">Drop in your images and a song, set the chaos, hit build — you get a
+     prank kit for your USB stick. ESC always stops it.</p>
+  <div class="exe-note {% if not has_exe %}warn{% endif %}">{{ exe_note }}</div>
+
+  <div class="drop" id="imgDrop">
+    <div class="t">Drop images here (or click)</div>
+    <div class="s">as many as you want &middot; png, jpg, gif, webp</div>
+  </div>
+  <div class="chips" id="imgChips"></div>
+
+  <div class="drop" id="musDrop">
+    <div class="t">Drop ONE song here (or click) — optional</div>
+    <div class="s">mp3, wav, ogg &middot; loops forever until ESC</div>
+  </div>
+  <div class="chips" id="musChips"></div>
+
+  <div class="row">
+    <label>Chaos level: <span id="chaosVal">6</span>/10</label>
+    <input type="range" id="chaos" min="1" max="10" value="6">
+  </div>
+  <div class="row">
+    <label>Max popups on screen at once: <span id="popVal">25</span></label>
+    <input type="range" id="maxpop" min="5" max="60" value="25">
+  </div>
+  <div class="row check">
+    <input type="checkbox" id="musicon" checked>
+    <label for="musicon" style="margin:0">Spam the music (if a song was added)</label>
+  </div>
+
+  <button id="build" {% if not has_exe %}disabled{% endif %}>Build my prank kit</button>
+  <div class="hint">Downloads <b>prank-kit.zip</b> — unzip to your USB stick, double-click the exe on the target PC.</div>
+  <div class="ver">{{ app_version }}<a href="https://github.com/kappytappy/prank-builder/releases" target="_blank" rel="noopener">Check for updates</a></div>
+</div>
+
+<input type="file" id="imgInput" accept=".png,.jpg,.jpeg,.gif,.bmp,.webp" multiple>
+<input type="file" id="musInput" accept=".mp3,.wav,.ogg">
+
+<script>
+  const images = [], chips = document.getElementById('imgChips');
+  let music = null;
+  const musChips = document.getElementById('musChips');
+
+  function wireDrop(dropId, inputId, cb) {
+    const drop = document.getElementById(dropId), input = document.getElementById(inputId);
+    drop.addEventListener('click', () => input.click());
+    input.addEventListener('change', () => { cb(input.files); input.value = ''; });
+    ['dragenter','dragover'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add('over'); }));
+    ['dragleave','drop'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove('over'); }));
+    drop.addEventListener('drop', ev => { cb(ev.dataTransfer.files); });
+  }
+  const IMGOK = /\.(png|jpe?g|gif|bmp|webp)$/i, MUSOK = /\.(mp3|wav|ogg)$/i;
+
+  function renderChips() {
+    chips.innerHTML = '';
+    images.forEach((f, i) => {
+      const c = document.createElement('div'); c.className = 'chip';
+      c.textContent = f.name;
+      const b = document.createElement('button'); b.textContent = '×';
+      b.onclick = () => { images.splice(i, 1); renderChips(); };
+      c.appendChild(b); chips.appendChild(c);
+    });
+    musChips.innerHTML = '';
+    if (music) {
+      const c = document.createElement('div'); c.className = 'chip';
+      c.textContent = '♪ ' + music.name;
+      const b = document.createElement('button'); b.textContent = '×';
+      b.onclick = () => { music = null; renderChips(); };
+      c.appendChild(b); musChips.appendChild(c);
+    }
+  }
+
+  wireDrop('imgDrop', 'imgInput', files => {
+    for (const f of files) if (IMGOK.test(f.name)) images.push(f);
+    renderChips();
+  });
+  wireDrop('musDrop', 'musInput', files => {
+    for (const f of files) if (MUSOK.test(f.name)) { music = f; break; }
+    renderChips();
+  });
+
+  const chaos = document.getElementById('chaos'), maxpop = document.getElementById('maxpop');
+  chaos.oninput = () => document.getElementById('chaosVal').textContent = chaos.value;
+  maxpop.oninput = () => document.getElementById('popVal').textContent = maxpop.value;
+
+  document.getElementById('build').onclick = async (ev) => {
+    const btn = ev.target;
+    btn.disabled = true; btn.textContent = 'Building...';
+    try {
+      const fd = new FormData();
+      images.forEach(f => fd.append('images', f));
+      if (music) fd.append('music', music);
+      fd.append('chaos', chaos.value);
+      fd.append('max_popups', maxpop.value);
+      fd.append('music_on', document.getElementById('musicon').checked ? 'on' : 'off');
+      const r = await fetch('/build', { method: 'POST', body: fd });
+      if (!r.ok) throw new Error(await r.text());
+      const blob = await r.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'prank-kit.zip';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      btn.textContent = 'Built — check your downloads ✓';
+    } catch (e) {
+      btn.textContent = 'Build failed — try again';
+      alert('Build failed: ' + e.message);
+    }
+    setTimeout(() => { btn.disabled = false; btn.textContent = 'Build my prank kit'; }, 4000);
+  };
+</script>
+</body>
+</html>
