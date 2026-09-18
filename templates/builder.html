@@ -34,6 +34,8 @@
   #build { width: 100%; background: #c81e1e; color: #fff; border: none; border-radius: 10px;
            padding: 15px; font-size: 17px; font-weight: 700; cursor: pointer; margin-top: 6px; }
   #build:disabled { background: #b0b3b8; cursor: default; }
+  #webbtn { width: 100%; background: #1877f2; color: #fff; border: none; border-radius: 10px;
+            padding: 13px; font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 10px; }
   .hint { font-size: 12.5px; color: #90949c; margin-top: 12px; text-align: center; }
   .ver { text-align: right; color: #90949c; font-size: 12px; margin-top: 18px; }
   .ver a { color: #1877f2; text-decoration: none; margin-left: 8px; }
@@ -73,7 +75,8 @@
   </div>
 
   <button id="build" {% if not has_exe %}disabled{% endif %}>Build my prank kit</button>
-  <div class="hint">Downloads <b>prank-kit.zip</b> — unzip to your USB stick, double-click the exe on the target PC.</div>
+  <button id="webbtn">Download web prank (email-friendly)</button>
+  <div class="hint">Prank kit = <b>prank-kit.zip</b> for the USB stick &middot; Web prank = one <b>prank.html</b> file you can attach to an email — they open it in their browser.</div>
   <div class="ver">{{ app_version }}<a href="https://github.com/kappytappy/prank-builder/releases" target="_blank" rel="noopener">Check for updates</a></div>
 </div>
 
@@ -127,9 +130,10 @@
   chaos.oninput = () => document.getElementById('chaosVal').textContent = chaos.value;
   maxpop.oninput = () => document.getElementById('popVal').textContent = maxpop.value;
 
-  document.getElementById('build').onclick = async (ev) => {
-    const btn = ev.target;
-    btn.disabled = true; btn.textContent = 'Building...';
+  async function sendBuild(url, filename, btn, busyText, doneText) {
+    btn.disabled = true;
+    const orig = btn.textContent;
+    btn.textContent = busyText;
     try {
       const fd = new FormData();
       images.forEach(f => fd.append('images', f));
@@ -137,21 +141,26 @@
       fd.append('chaos', chaos.value);
       fd.append('max_popups', maxpop.value);
       fd.append('music_on', document.getElementById('musicon').checked ? 'on' : 'off');
-      const r = await fetch('/build', { method: 'POST', body: fd });
+      const r = await fetch(url, { method: 'POST', body: fd });
       if (!r.ok) throw new Error(await r.text());
       const blob = await r.blob();
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'prank-kit.zip';
+      a.download = filename;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-      btn.textContent = 'Built — check your downloads ✓';
+      btn.textContent = doneText;
     } catch (e) {
-      btn.textContent = 'Build failed — try again';
+      btn.textContent = 'Failed — try again';
       alert('Build failed: ' + e.message);
     }
-    setTimeout(() => { btn.disabled = false; btn.textContent = 'Build my prank kit'; }, 4000);
-  };
+    setTimeout(() => { btn.disabled = false; btn.textContent = orig; }, 4000);
+  }
+
+  document.getElementById('build').onclick = (ev) =>
+    sendBuild('/build', 'prank-kit.zip', ev.target, 'Building...', 'Built — check your downloads ✓');
+  document.getElementById('webbtn').onclick = (ev) =>
+    sendBuild('/web', 'prank.html', ev.target, 'Building...', 'Built — check your downloads ✓');
 </script>
 </body>
 </html>
